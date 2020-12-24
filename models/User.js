@@ -48,9 +48,18 @@ if (!User) {
                 next();
             })
         })
-       
       });
+      
+      userSchema.methods.comparePassword = function(candidatePassword, callback) {
+        bcrypt.compare(candidatePassword, this.password, function(err, isMatch) {
+            if (err) {
+                callback(err);
+                return;
+            }
 
+            callback(null, isMatch);
+        });
+      }
     //make sure you add all your hooks above before calling mongoose.model
     //further reading on mongoose models: https://mongoosejs.com/docs/models.html
     User = mongoose.model('User', userSchema);

@@ -4,6 +4,8 @@ const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const addRoutes = require('./routes').addRoutes;
 const databaseSetup = require('./db/databaseSetup');
+const passport = require('./lib/passport');
+
 const PORT_NUMBER = 3001;
 
 /* don't forget to start mongodb server!!!!
@@ -19,6 +21,7 @@ app.use(bodyParser.json({
     limit: '5mb'
 }));
 app.use(cookieParser());
+
 
 addRoutes(app);
 

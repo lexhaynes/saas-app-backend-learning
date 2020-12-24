@@ -5,6 +5,8 @@
 const validateEmail = require('../utils').validateEmail;
 const validatePassword = require('../utils').validatePassword;
 const User = require('../models/User');
+const passport = require('passport');
+
 
 /* register controller */
 const register = async (req, res, next) => {
@@ -92,35 +94,29 @@ const login = async (req, res, next) => {
     }
 
      /* Check if user's password matches what is in the database */
-     //first check if user exists
-    try {
-        const existingUser = await User.findOne({
-            email
-        });
-        
-        //if  no user is found, send error
-        if (!existingUser) {
-            const errorObject = {
-                error: true,
-                errors: [{
-                        errorCode: 'VALIDATION_ERROR',
-                        errorMsg: 'The email address you have provided does not exist. Please create an account first.',
-                        field: 'email'
-                    }]
-            };
-            //status 422 is an unprocessable entity - which means server recieved request but did not process it.
-            res.status(422).send(errorObject);
+
+
+    //match passwords here
+    passport.authenticate('local', (err, user, info) => {
+        if (err) {
+            return next(err);
+        }
+
+        if (!user) {
+            res.status(401).send(info);
             return;
         }
 
-        //match passwords here
+        /* if(user) {
+            //send JWT token to client
+        } */
 
-        //send response to client 
-        res.status(200).send("User found successfully! todo match password");
+        //testing
+        res.status(200).send(user);
+        return;
+    })(req, res, next);
         
-    } catch(err) {
-        res.status(422).send("error trying to login: " + err)
-    }
+  
 }
 
 /* validate shared fields here */
