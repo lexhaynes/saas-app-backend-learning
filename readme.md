@@ -1,4 +1,4 @@
-# SAAS App Backend
+# SAAS App Backend for Learning Purposes
 
 ## Features
 
@@ -6,14 +6,18 @@
 
 ## Stack
 
-### Database
+### Database - for development
 
-MongoDB Community
+[MongoDB Community](https://www.mongodb.com/community)
 
 ### Server
 
-Express
+[Express](https://expressjs.com/)
 
-### Encruption
+### Encryption
 
-Bcrypt
+[Bcrypt](https://www.npmjs.com/package/bcrypt)
+
+### Authentication
+
+[PassportJS]()
