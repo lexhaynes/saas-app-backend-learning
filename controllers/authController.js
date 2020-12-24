@@ -6,25 +6,18 @@ const validateEmail = require('../utils').validateEmail;
 const validatePassword = require('../utils').validatePassword;
 const User = require('../models/User');
 
-class ErrorObject {
-    constructor(errorCode, errorMsg, field) {
-      this.errorCode = errorCode;
-      this.errorMsg = errorMsg;
-      this.field = field;
-    }
-  }
-
+/* register controller */
 const register = async (req, res, next) => {
     const {email, password } = req.body;
 
-    //validate input fields
-    const validationErrors = [];
+    /* Validate fields */
+    const validationErrors = validateFields({
+        email, 
+        password
+    });
 
-    validationErrors.push(
-        isEmailEmpty(email),
-    )
 
-    //if we have validation errors, send them back to caller 
+     /* Send any validation errors back to client */ 
     if (validationErrors.length) {
         const errorObject = {
             error: true,
@@ -32,12 +25,11 @@ const register = async (req, res, next) => {
         }
          
         res.status(422).send(errorObject);
-        //return; //<-- not sure why this has to be here...?
+        return; //<-- this has to be here so we exit the register function before running the monngo middleware below
     }
 
 
-    //Save user info to database
-
+    /* Save user info to database */
     //first make sure no other user exists with the same email address
     try {
         const existingUser = await User.findOne({
@@ -77,58 +69,77 @@ const register = async (req, res, next) => {
   
 }
 
+/* login controller */
 const login = async (req, res, next) => {
+    const {email, password } = req.body;
+
+    /* Validate fields */
+    const validationErrors = validateFields({
+        email, 
+        password
+    });
+
+
+     /* Send any validation errors back to client */ 
+    if (validationErrors.length) {
+        const errorObject = {
+            error: true,
+            errors: validationErrors
+        }
+         
+        res.status(422).send(errorObject);
+        return; //<-- this has to be here so we exit the register function before running the monngo middleware below
+    }
+  res.status(200).send({
+      status: 'testing only right now. you need to compare passwords to db passwords.'
+  });
 
 }
 
-/* common functions */
+/* validate shared fields here */
+const validateFields = (fields = {}) => {
+    
+    const {email, password } = fields;
+    const errors = [];
 
-
-//check if email field is empty
-const isEmailEmpty = (email) {
     if (!email) {
-        return new ErrorObject(
-            'VALIDATION_ERROR',
-            'You must provide an email address',
-            'email'
-        )
-    }  
-};
+        //error object shape below 
+        errors.push({
+            errorCode: 'VALIDATION_ERROR',
+            errorMsg: 'You must provide an email address',
+            field: 'email'
+        })
+    }
 
-
-//if email exists on the req body, check if it's valid
-const isEmailValid = (email) {
+    //if email exists on the req body, check if it's valid
     if (email && !validateEmail(email)) {
-        return new ErrorObject(
-            'VALIDATION_ERROR',
-            'The email address you have provided is invalid.',
-            'email'
-        )
+        errors.push({
+            errorCode: 'VALIDATION_ERROR',
+            errorMsg: 'The email address you have provided is invalid.',
+            field: 'email'
+        })
     }
-}
 
-//check if password field is empty
-const isPasswordEmpty = (password) {
     if (!password) {
-        return new ErrorObject(
-            'VALIDATION_ERROR',
-            'You must provide a password',
-            'password'
-        )
+        errors.push({
+            errorCode: 'VALIDATION_ERROR',
+            errorMsg: 'You must provide a password',
+            field: 'password'
+        })
     }
-}
 
-//check if password is valid
-const isPasswordValid = (password) {
+    //validate password
     if (password && !validatePassword(password)) {
-        validationErrors.push({
+        errors.push({
             errorCode: 'VALIDATION_ERROR',
             errorMsg: 'The password you have provided is invalid. Please make sure your password follows the password rules.',
             field: 'password'
         })
-    }
-}
+  }
 
+  return errors;
+
+}
 
 module.exports = {
     register, login

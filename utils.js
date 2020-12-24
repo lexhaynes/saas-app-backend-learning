@@ -12,6 +12,8 @@ const validatePassword = (pass) => {
     return pass.length > 1 ? true : false;
 }
 
+
+
 module.exports = {
     validateEmail,
     validatePassword

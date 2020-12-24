@@ -27,6 +27,13 @@ function addRoutes(app) {
     */
      app.post('/api/register', authController.register);
 
+    //login users
+    /*
+        param 1: api endpong
+        param 2: middleware that uses a controller function 
+    */
+   app.post('/api/login', authController.login);
+
 }
 
 const routes = {
