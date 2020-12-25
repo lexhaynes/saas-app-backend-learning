@@ -6,6 +6,7 @@ const validateEmail = require('../utils').validateEmail;
 const validatePassword = require('../utils').validatePassword;
 const User = require('../models/User');
 const passport = require('passport');
+const jwt = require('jsonwebtoken');
 
 
 /* register controller */
@@ -43,7 +44,7 @@ const register = async (req, res, next) => {
                 error: true,
                 errors: [{
                         errorCode: 'VALIDATION_ERROR',
-                        errorMsg: 'The email address you have provided already exists. Please use another email address.',
+                        errorMsg: 'This email address already exists. Please use another email address.',
                         field: 'email'
                     }]
             };
@@ -95,7 +96,6 @@ const login = async (req, res, next) => {
 
      /* Check if user's password matches what is in the database */
 
-
     //match passwords here
     passport.authenticate('local', (err, user, info) => {
         if (err) {
@@ -107,12 +107,16 @@ const login = async (req, res, next) => {
             return;
         }
 
-        /* if(user) {
-            //send JWT token to client
-        } */
-
-        //testing
-        res.status(200).send(user);
+        //if a user is found, encrypt the entire user object as a JWT token and send the token back to client.
+        const userObject = user.toObject(); //<-- toObject() is a mongoose function
+        const jwtToken = jwt.sign(userObject, process.env.JWT_SECRET || 'TEMP_JWT_SECRET', {
+            expiresIn: 86400, //<-- one day in seconds
+        });
+        res.status(200).send({
+            token:jwtToken, //<-- this token can be stored in a cookie or localStorage  
+            user: userObject //<-- the client can use the user object to display personalized info, like welcome, {name}
+        });
+    
         return;
     })(req, res, next);
         

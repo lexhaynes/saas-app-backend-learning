@@ -21,3 +21,4 @@
 ### Authentication
 
 [PassportJS](https://www.passportjs.org/)
+[JSON Web Token](https://www.npmjs.com/package/jsonwebtoken)
