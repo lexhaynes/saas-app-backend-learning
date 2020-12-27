@@ -7,9 +7,9 @@ const validatePassword = require('../utils').validatePassword;
 const User = require('../models/User');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
 
-
-/* register controller */
+/* ========== REGISTER CONTROLLER */
 const register = async (req, res, next) => {
     const {email, password } = req.body;
 
@@ -53,18 +53,25 @@ const register = async (req, res, next) => {
             return;
         }
 
-        //if user is NOT found, create new uer object
+        //if user is NOT found, create new User object
         //remember that these fields have to match the model object (aka the User Schema)
         let user = new User({
-            email, //<-- shorthand for email: email
-            password //<-- shorthand for password: password
+            email, //<-- shorthand for email: email (from the request body)
+            password, //<-- shorthand for password: password (from the request npdy)
+            activated: false,
+            activatedAt: Date.now(),
+            activationToken: uuidv4(),
+           // activationTokenSentAt: Date.Now(),
         });
 
         //save to db
         const savedUser = await user.save();
 
         //send response to client 
-        res.status(200).send("User created successfully!")
+        res.status(200).send({
+            message: "User created successfully!",
+            user: User.toClientObject(savedUser) //<-- send back relevant fields from db using helper function set in User model
+        });
         
     } catch(err) {
         res.status(422).send("error trying to save user info to database: " + err)
@@ -72,7 +79,7 @@ const register = async (req, res, next) => {
   
 }
 
-/* login controller */
+/* ========== LOGIN CONTROLLER */
 const login = async (req, res, next) => {
     const {email, password } = req.body;
 
@@ -109,12 +116,17 @@ const login = async (req, res, next) => {
 
         //if a user is found, encrypt the entire user object as a JWT token and send the token back to client.
         const userObject = user.toObject(); //<-- toObject() is a mongoose function
-        const jwtToken = jwt.sign(userObject, process.env.JWT_SECRET || 'TEMP_JWT_SECRET', {
+        //extract just the ID from userObject, in order to reduce size of token that is sent back to client.
+        const tokenObject = {
+            _id: userObject._id,
+            //add other fields from user in DB here if you want to send back more data to client
+        }
+        //send token object that contains JUST the userID
+        const jwtToken = jwt.sign(tokenObject, process.env.JWT_SECRET || 'TEMP_JWT_SECRET', {
             expiresIn: 86400, //<-- one day in seconds
         });
         res.status(200).send({
-            token:jwtToken, //<-- this token can be stored in a cookie or localStorage  
-            user: userObject //<-- the client can use the user object to display personalized info, like welcome, {name}
+            token:jwtToken //<-- this token can be stored in a cookie or localStorage  
         });
     
         return;
@@ -123,7 +135,7 @@ const login = async (req, res, next) => {
   
 }
 
-/* validate shared fields here */
+/* helper function: validate email/password fields here; used for register and login controllers. */
 const validateFields = (fields = {}) => {
     
     const {email, password } = fields;
@@ -168,7 +180,17 @@ const validateFields = (fields = {}) => {
 
 }
 
-module.exports = {
-    register, login
-};
+/* ========== CONFIRM LOGGED IN CONTROLLER: authorize that the user is logged in */
+const testAuth = async (req, res, next) => {
+    console.log('req.user: ' + req.user)
+    
+    //if user is available, user is logged in (but how do we make this correlation? 
+    //answer: because there is another middleware running before this method is called
+    res.send({
+        isLoggedIn: req.user ? true: false
+    });
+}
 
+module.exports = {
+    register, login, testAuth
+};

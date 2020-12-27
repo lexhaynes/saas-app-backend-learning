@@ -22,3 +22,7 @@
 
 [PassportJS](https://www.passportjs.org/)
 [JSON Web Token](https://www.npmjs.com/package/jsonwebtoken)
+
+### Account Activation
+
+[uuid](https://www.npmjs.com/package/uuid) - for tokens

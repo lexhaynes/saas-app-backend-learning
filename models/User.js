@@ -16,7 +16,12 @@ if (!User) {
         password: {
             type: String,
             required: true
-        }
+        },
+        activated: {type: Boolean, default: false},
+        activatedAt: {type: Date, default: Date.now}, /*<-- Date.now vs Date.now(); mongoose will call Date.now() at the time of document creation;
+        //Date.now() would create the date at the time of SCHEMA creation!*/
+        activationToken: {type:String, unique:true},
+        activationTokenSentAt: {type:Date},
     },
     {
         timestamps:true
@@ -60,6 +65,22 @@ if (!User) {
             callback(null, isMatch);
         });
       }
+
+      //using statics adds method to the MODEL (User) and not to the instance (UserSchema)
+      //this function will send data to the client
+      userSchema.statics.toClientObject = function(user) {
+        const userObject = user.toObject() || {}; 
+        const clientObject = {
+            _id: userObject._id,
+            email: userObject.email,
+            activated: userObject.activated,
+            createdAt: userObject.createdAt,
+            updatedAt: userObject.updatedAt
+        };
+
+        return clientObject;
+      }
+
     //make sure you add all your hooks above before calling mongoose.model
     //further reading on mongoose models: https://mongoosejs.com/docs/models.html
     User = mongoose.model('User', userSchema);
