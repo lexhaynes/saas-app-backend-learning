@@ -29,6 +29,8 @@ function addRoutes(app) {
     */
     app.post('/api/login', authController.login);
 
+    app.post('/api/account-activate', authController.accountActivate);
+
     //authorize your user - check that the user sending requests to server is authorized to view this route
 
     /*

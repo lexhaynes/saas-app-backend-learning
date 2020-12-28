@@ -126,7 +126,8 @@ const login = async (req, res, next) => {
             expiresIn: 86400, //<-- one day in seconds
         });
         res.status(200).send({
-            token:jwtToken //<-- this token can be stored in a cookie or localStorage  
+            token:jwtToken, //<-- this token can be stored in a cookie or localStorage  
+            accountInfo: User.toClientObject(user) //<-- this data is sent to client upon successful login. may not be necessary.
         });
     
         return;
@@ -191,6 +192,62 @@ const testAuth = async (req, res, next) => {
     });
 }
 
+/* ========== ACTIVATE USER ACCOUNT CONTROLLER ========== */
+const accountActivate = async (req, res, next) => {
+    const {
+        activationToken
+    } = req.body;
+
+    const errorObject = {
+        error: true,
+        errors: [{
+                errorCode: 'VALIDATION_ERROR',
+                errorMsg: 'There was a problem activating your account.',
+            }]
+    };
+
+    //return error if there is no activation token
+    if (!activationToken) {
+        //status 422 is an unprocessable entity - which means server recieved request but did not process it.
+        res.status(422).send(errorObject);
+        return;
+    }
+
+    //otherwise, proceed
+    try { //find user by activationToken sent in the request
+        const user = await User.findOne({
+            activationToken //<-- activationToken (field were searching by): activationToken (from request)
+        });
+
+        //if no user is returned, it means the client sent an invalid activation token
+        if (!user) {
+            res.status(422).send(errorObject);
+            return;
+        }
+
+        //user IS returned! so now update data.
+        user.activated = true;
+        user.activatedAt = Date.now();
+        user.activationToken = undefined;
+
+        const savedUser = await user.save();
+
+        return res.send({
+            message: 'Your account has been activated! Please log in.', //<-- you can also automatically log in the user upon successful actiavtion
+            accountInfo: User.toClientObject(savedUser) //<-- this data is sent to client upon successful login. may not be necessary.
+
+        });
+
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({
+            error: e
+        });
+    }
+
+
+}
+
 module.exports = {
-    register, login, testAuth
+    register, login, testAuth, accountActivate
 };

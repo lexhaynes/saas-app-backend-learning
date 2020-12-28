@@ -20,7 +20,7 @@ if (!User) {
         activated: {type: Boolean, default: false},
         activatedAt: {type: Date, default: Date.now}, /*<-- Date.now vs Date.now(); mongoose will call Date.now() at the time of document creation;
         //Date.now() would create the date at the time of SCHEMA creation!*/
-        activationToken: {type:String, unique:true},
+        activationToken: {type:String, unique:true, sparse:true}, //sparse:true means that this field will be deleted IF the value is undefined
         activationTokenSentAt: {type:Date},
     },
     {
