@@ -30,6 +30,8 @@ function addRoutes(app) {
     app.post('/api/login', authController.login);
 
     app.post('/api/account-activate', authController.accountActivate);
+    app.post('/api/resend-activation-link', authController.resendActivationLink);
+    app.post('/api/reset-password-link', authController.resetPasswordLink);
 
     //authorize your user - check that the user sending requests to server is authorized to view this route
 

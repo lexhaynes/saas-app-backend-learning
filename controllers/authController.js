@@ -6,6 +6,7 @@ const validateEmail = require('../utils').validateEmail;
 const validatePassword = require('../utils').validatePassword;
 const User = require('../models/User');
 const passport = require('passport');
+const moment = require('moment');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 
@@ -79,7 +80,7 @@ const register = async (req, res, next) => {
   
 }
 
-/* ========== LOGIN CONTROLLER */
+/* ========== LOGIN CONTROLLER ========== */
 const login = async (req, res, next) => {
     const {email, password } = req.body;
 
@@ -234,7 +235,7 @@ const accountActivate = async (req, res, next) => {
 
         return res.send({
             message: 'Your account has been activated! Please log in.', //<-- you can also automatically log in the user upon successful actiavtion
-            accountInfo: User.toClientObject(savedUser) //<-- this data is sent to client upon successful login. may not be necessary.
+            email: savedUser.email //<-- this data is sent to client upon successful login. may not be necessary.
 
         });
 
@@ -248,6 +249,140 @@ const accountActivate = async (req, res, next) => {
 
 }
 
+/* ========== RE-SEND ACCOUNT ACTIVATION LINK CONTROLLER ========== */
+const resendActivationLink = async (req, res, next) => {
+    const {
+        email
+    } = req.body;
+
+    const errorObject = {
+        error: true,
+        errors: [{
+                errorCode: 'VALIDATION_ERROR',
+                errorMsg: 'Please specify the email address that needs activation.',
+            }]
+    };
+
+    //validate that the email has been returned from request
+    if (!email) {
+        res.status(422).send(errorObject);
+        return;
+    }
+    
+    //if user has specified an email address, retrieve it from the database
+    try {
+        //find user by email sent in the request
+        const user = await User.findOne({
+            email //<-- email (field were searching by): email (from request)
+        });
+
+         // if no user is returned, it means the email address sent by client is not in database
+         // for security purposes, ignore this case. 
+         // we don't want to let potential hax0r know that this email isn't in the db.
+         // server will just time out
+       /*  if (!user) {
+            return;
+        } */
+         
+        //if we get a user back and user is not activated, update activation token in db
+        if (user && !user.activated) {
+            user.activationTokenSentAt = Date.now();
+            user.activationToken = uuidv4();
+
+            await user.save();
+
+            //Send activation email here
+        }
+
+        //note that success message gets returned whether email was found or not, for security reasons.
+        return res.send({
+            message: 'Activation link has been sent.'
+        });
+        
+    } catch(e) {
+        console.log(e);
+        res.status(500).send({
+            error: e
+        });
+    }
+    
+}
+
+/* ========== RE-SEND SET-PASSWORD LINK CONTROLLER ========== */
+const resetPasswordLink = async (req, res, next) => {
+    const {
+        email
+    } = req.body;
+
+    const errorObject = {
+        error: true,
+        errors: [{
+                errorCode: 'VALIDATION_ERROR',
+                errorMsg: 'Please specify an email address.',
+            }]
+    };
+
+    //validate that the email has been returned from request
+    if (!email) {
+        res.status(422).send(errorObject);
+        return;
+    }
+    
+    //if user has specified an email address, retrieve it from the database
+    try {
+        //find user by email sent in the request
+        const user = await User.findOne({
+            email //<-- email (field were searching by): email (from request)
+        });
+        
+        //ignore 'user is not found' case to prevent hax0rs from knowing which emails are in the db
+      
+        //if we get a user back, reset password
+        if (user) {
+            //if resetPasswordTokenSentAt was sent less than 10 minutes ago, do not generate a new token and send error.
+            if (user.resetPasswordTokenSentAt) {
+                const tokenLastSent = moment(user.resetPasswordTokenSentAt);
+                const rightNow = moment();
+                const difference = rightNow.diff(tokenLastSent);
+                const MIN_WAIT_TIME = 600000; //10 minutes in miliseconds
+                //console.log(difference/1000);
+                if (difference < MIN_WAIT_TIME) {
+                    res.status(422).send({
+                        error: true,
+                        errors: [{
+                                errorCode: 'VALIDATION_ERROR',
+                                errorMsg: 'Your reset link has already been sent. Please wait for your email to arrive.',
+                            }]
+                    });
+                    return;
+                }
+    
+            }
+            
+            user.resetPasswordToken = uuidv4();
+            user.resetPasswordTokenSentAt = Date.now();
+
+            await user.save();
+
+            //Send reset passwprd email here
+        }
+
+        //note that success message gets returned whether email was found or not, for security reasons.
+        return res.send({
+            message: 'Reset-password link has been sent.'
+        });
+       
+        
+    } catch(e) {
+        console.log(e);
+        res.status(500).send({
+            error: e
+        });
+    }
+    
+}
+
+
 module.exports = {
-    register, login, testAuth, accountActivate
+    register, login, testAuth, accountActivate, resendActivationLink, resetPasswordLink
 };

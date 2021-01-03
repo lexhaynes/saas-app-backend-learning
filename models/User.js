@@ -17,6 +17,10 @@ if (!User) {
             type: String,
             required: true
         },
+        //reset password fields
+        resetPasswordToken: {type:String, unique:true, sparse:true},
+        resetPasswordTokenSentAt: {type:Date},
+        //account activation fields 
         activated: {type: Boolean, default: false},
         activatedAt: {type: Date, default: Date.now}, /*<-- Date.now vs Date.now(); mongoose will call Date.now() at the time of document creation;
         //Date.now() would create the date at the time of SCHEMA creation!*/
@@ -71,11 +75,12 @@ if (!User) {
       userSchema.statics.toClientObject = function(user) {
         const userObject = user.toObject() || {}; 
         const clientObject = {
-            _id: userObject._id,
+            //_id: userObject._id,
             email: userObject.email,
             activated: userObject.activated,
-            createdAt: userObject.createdAt,
-            updatedAt: userObject.updatedAt
+            activationToken: userObject.activationToken,
+           // createdAt: userObject.createdAt,
+           // updatedAt: userObject.updatedAt
         };
 
         return clientObject;
