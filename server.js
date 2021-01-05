@@ -1,3 +1,4 @@
+const dontenv = require('dotenv').config();
 const express = require('express');
 const compression = require('compression');
 const bodyParser = require('body-parser');
@@ -6,7 +7,8 @@ const addRoutes = require('./routes').addRoutes;
 const databaseSetup = require('./db/databaseSetup');
 const passport = require('./lib/passport');
 
-const PORT_NUMBER = 3001;
+
+const PORT_NUMBER = process.env.LOCAL_PORT;
 
 /* don't forget to start mongodb server!!!!
 run mongod

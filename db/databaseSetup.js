@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const databaseURL = 'mongodb://localhost/saasCodeAlong';
+const databaseURL = process.env.DB_URL;
 mongoose.Promise = Promise;
 
 mongoose.connect(databaseURL, { useNewUrlParser: true, useUnifiedTopology: true })
