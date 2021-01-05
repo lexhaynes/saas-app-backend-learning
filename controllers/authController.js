@@ -126,7 +126,7 @@ const login = async (req, res, next) => {
             //add other fields from user in DB here if you want to send back more data to client
         }
         //send token object that contains JUST the userID
-        const jwtToken = jwt.sign(tokenObject, process.env.JWT_SECRET || 'TEMP_JWT_SECRET', {
+        const jwtToken = jwt.sign(tokenObject, process.env.JWT_SECRET, {
             expiresIn: 86400, //<-- one day in seconds
         });
         res.status(200).send({
