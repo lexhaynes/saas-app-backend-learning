@@ -22,13 +22,11 @@ const register = async (req, res, next) => {
 
 
      /* Send any validation errors back to client */ 
-    if (validationErrors.length) {
-        const errorObject = {
+    if (validationErrors.length) {         
+        res.status(422).send({
             error: true,
             errors: validationErrors
-        }
-         
-        res.status(422).send(errorObject);
+        });
         return; //<-- this has to be here so we exit the register function before running the monngo middleware below
     }
 
@@ -75,7 +73,13 @@ const register = async (req, res, next) => {
         });
         
     } catch(err) {
-        res.status(422).send("error trying to save user info to database: " + err)
+        res.status(422).send({
+            error: true,
+            errors:[{
+                errorCode: 'VALIDATION_ERROR',
+                errorMsg: err
+            }]
+        });
     }
   
 }
@@ -93,12 +97,11 @@ const login = async (req, res, next) => {
 
      /* Send any validation errors back to client */ 
     if (validationErrors.length) {
-        const errorObject = {
+         
+        res.status(422).send({
             error: true,
             errors: validationErrors
-        }
-         
-        res.status(422).send(errorObject);
+        });
         return; //<-- this has to be here so we exit the register function before running the monngo middleware below
     }
 
@@ -308,7 +311,7 @@ const resendActivationLink = async (req, res, next) => {
     
 }
 
-/* ========== RE-SEND SET-PASSWORD LINK CONTROLLER ========== */
+/* ========== EMAIL RESET-PASSWORD LINK CONTROLLER - send password token to email ========== */
 const resetPasswordLink = async (req, res, next) => {
     const {
         email
@@ -337,7 +340,7 @@ const resetPasswordLink = async (req, res, next) => {
         
         //ignore 'user is not found' case to prevent hax0rs from knowing which emails are in the db
       
-        //if we get a user back, reset password
+        //if we get a user back, send the reset password token
         if (user) {
             //if resetPasswordTokenSentAt was sent less than 10 minutes ago, do not generate a new token and send error.
             if (user.resetPasswordTokenSentAt) {
@@ -364,7 +367,7 @@ const resetPasswordLink = async (req, res, next) => {
 
             await user.save();
 
-            //Send reset passwprd email here
+            //Send reset password email here
         }
 
         //note that success message gets returned whether email was found or not, for security reasons.
@@ -376,13 +379,71 @@ const resetPasswordLink = async (req, res, next) => {
     } catch(e) {
         console.log(e);
         res.status(500).send({
-            error: e
+            errorMsg: e
         });
     }
     
 }
 
+/* ========== RESET PASSWORD CONTROLLER ========== */
+const resetPassword = async (req, res, next) => {
+    const {
+        resetPasswordToken,
+        password 
+    } = req.body;
+
+    const validationErrors = [];
+
+     //return error if there is no password token
+     if (!password || !resetPasswordToken) {
+        validationErrors.push({
+            errorCode: 'VALIDATION_ERROR',
+            errorMsg: 'Your password could not be updated.',
+        });
+    }
+
+    //return errors to client if they exist
+    if (validationErrors.length) {
+        return res.status(422).send({errors: validationErrors});
+    }
+
+    //otherwise, proceed
+    try { //find user by resetPasswordToken sent in the request
+        const user = await User.findOne({
+            resetPasswordToken //<-- activationToken (field were searching by): activationToken (from request)
+        });
+        
+        if (!user) {
+            //TODO: possibly send an error back to client
+            throw 'Error updating password.';
+        }
+
+        //if user is found, update password
+        if (user) {
+            user.password = password;
+            user.resetPasswordToken = undefined;
+            
+            const savedUser = await user.save();
+
+            return res.send({
+                message: 'Your password has been updated.',
+            });
+        }
+    } catch (e) {
+        res.status(500).send({
+            errorMsg: e
+        });
+    }
+
+}
+
 
 module.exports = {
-    register, login, testAuth, accountActivate, resendActivationLink, resetPasswordLink
+    register, 
+    login, 
+    testAuth, 
+    accountActivate, 
+    resendActivationLink, 
+    resetPasswordLink, 
+    resetPassword
 };
