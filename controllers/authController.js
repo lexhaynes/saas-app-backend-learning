@@ -9,8 +9,7 @@ const passport = require('passport');
 const moment = require('moment');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
-const formatApiResponse = require('../lib/formatApiResponse').formatApiResponse;
-const APIResult = require('../lib/formatApiResponse').APIResult;
+
 
 /* ========== REGISTER CONTROLLER */
 const register = async (req, res, next) => {
@@ -25,7 +24,9 @@ const register = async (req, res, next) => {
 
      /* Send any validation errors back to client */ 
     if (validationErrors.length) {         
-        res.status(422).send(formatApiResponse('ERROR', validationErrors));
+        res.status(422).send({
+            errors: validationErrors
+        });
         return; //<-- this has to be here so we exit the register function before running the monngo middleware below
     }
 
@@ -40,10 +41,13 @@ const register = async (req, res, next) => {
         if (existingUser) {
             const code = 'VALIDATION_ERROR';
             const msg = 'This email address already exists. Please use another email address.';
-            const results = [new APIResult(code, msg)];
                 
-            res.status(422).send(formatApiResponse('ERROR', results));
-            return;
+            return res.status(422).send({
+                errors: [{
+                        code,
+                        msg
+                    }]
+            });
         }
 
         //if user is NOT found, create new User object
@@ -63,18 +67,26 @@ const register = async (req, res, next) => {
         //send response to client 
         const code = 'REGISTRATION_SUCCESS';
         const msg = 'You have successfully registered an accout.';
-        const data = User.toClientObject(savedUser); //<-- send back relevant fields from db using helper function set in User model
-        const results = [new APIResult(code, msg, data)];
             
-        res.status(200).send(formatApiResponse('SUCCESS', results));
+        res.send({
+            results: [{
+                code,
+                msg,
+                ...User.toClientObject(savedUser)
+            }]
+        });
+
 
         
     } catch(err) {
-        const code = 'VALIDATION_ERROR';
-        const msg = err;
-        const results = [new APIResult(code, msg)];
-            
-        res.status(422).send(formatApiResponse('ERROR', results));
+        const code = 'VALIDATION_ERROR';  
+
+        res.status(422).send({
+            errors: [{
+                    code,
+                    err
+                }]
+        });
     }
   
 }
@@ -92,8 +104,9 @@ const login = async (req, res, next) => {
 
      /* Send any validation errors back to client */ 
     if (validationErrors.length) {   
-        res.status(422).send(formatApiResponse('ERROR', validationErrors));    
-        return; //<-- this has to be here so we exit the register function before running the monngo middleware below
+        return res.status(422).send({
+            errors: validationErrors
+        });    
     }
 
      /* Check if user's password matches what is in the database */
@@ -107,9 +120,13 @@ const login = async (req, res, next) => {
         if (!user) {
             const code = 'GLOBAL_ERROR';
             const msg = 'Something went wrong';
-            const results = [new APIResult(code, msg, info)];
                 
-            res.status(401).send(formatApiResponse('ERROR', results));
+            res.status(401).send({
+                errors: [{
+                        code,
+                        msg
+                    }]
+            });
             return;
         }
 
@@ -125,15 +142,19 @@ const login = async (req, res, next) => {
             expiresIn: 86400, //<-- one day in seconds
         });
 
-        res.status(200).send({
-            token:jwtToken, //<-- this token can be stored in a cookie or localStorage  
-            accountInfo: User.toClientObject(user) //<-- this data is sent to client upon successful login. may not be necessary.
-        });
+        const code = 'AUTH_SUCCESS';
+        const msg = 'You have successfully logged in.';
+            
+        return res.send({
+            results: [{
+                    code,
+                    msg,
+                    token: jwtToken,
+                    ...User.toClientObject(user)
+                }]
+            });
+        })(req, res, next);
     
-        return;
-    })(req, res, next);
-        
-  
 }
 
 
@@ -145,6 +166,7 @@ const testAuth = async (req, res, next) => {
     //if user is available, user is logged in (but how do we make this correlation? 
     //answer: because there is another middleware running before this method is called
     res.send({
+        results: [],
         isLoggedIn: req.user ? true: false
     });
 }
@@ -161,11 +183,13 @@ const accountActivate = async (req, res, next) => {
 
         const code = 'VALIDATION_ERROR';
         const msg = 'There was a problem activating your account.';
-        const results = [new APIResult(code, msg)];
             
-        res.status(422).send(formatApiResponse('ERROR', results));
-        
-        return;
+        return res.status(422).send({
+            errors: [{
+                    code,
+                    msg
+                }]
+        });
     }
 
     //otherwise, proceed
@@ -178,9 +202,13 @@ const accountActivate = async (req, res, next) => {
         if (!user) {
             const code = 'VALIDATION_ERROR';
             const msg = 'There was a problem activating your account.';
-            const results = [new APIResult(code, msg)];
                 
-            res.status(422).send(formatApiResponse('ERROR', results));
+            res.status(422).send({
+                errors: [{
+                        code,
+                        msg
+                    }]
+            });
             return;
         }
 
@@ -193,17 +221,24 @@ const accountActivate = async (req, res, next) => {
 
         const code = 'ACCOUNT_ACTIVATION_SUCCESS';
         const msg = 'Your account has been successfully activated!';
-        const data = {email: savedUser.email};
-        const results = [new APIResult(code, msg, data)];
             
-        res.send(formatApiResponse('SUCCESS', results));
+        res.send({
+            results: [{
+                    code,
+                    msg,
+                    email: savedUser.email
+                }]
+        });
 
     } catch (err) {
-        const code = 'GLOBAL_ERROR';
-        const msg = err;
-        const results = [new APIResult(code, msg)];
+        const code = 'GLOBAL_ERROR'; 
             
-        res.status(500).send(formatApiResponse('ERROR', results));
+        res.status(500).send({
+            results: [{
+                    code,
+                    err,
+                }]
+        });
     }
 
 
@@ -220,9 +255,13 @@ const resendActivationLink = async (req, res, next) => {
     if (!email) {
         const code = 'VALIDATION_ERROR';
         const msg = 'Please specify the email address that needs activation.';
-        const results = [new APIResult(code, msg)];
-            
-        res.status(422).send(formatApiResponse('ERROR', results));
+  
+        res.status(422).send({
+            results: [{
+                    code,
+                    msg,
+                }]
+        });
         return;
     }
     
@@ -254,16 +293,23 @@ const resendActivationLink = async (req, res, next) => {
         //note that success message gets returned whether email was found or not, for security reasons.
         const code = 'ACTIVATION_SUCCESS';
         const msg = 'Activation link has been emailed to you.';
-        const results = [new APIResult(code, msg)];
             
-        return res.send(formatApiResponse('SUCCESS', results));
+        return res.send({
+            results: [{
+                    code,
+                    msg,
+                }]
+        });
         
     } catch(err) {
         const code = 'GLOBAL_ERROR';
-        const msg = err;
-        const results = [new APIResult(code, msg)];
             
-        res.status(500).send(formatApiResponse('ERROR', results));
+        res.status(500).send({
+            results: [{
+                    code,
+                    err,
+                }]
+        });
     }
     
 }
@@ -280,9 +326,13 @@ const resetPasswordLink = async (req, res, next) => {
     if (!email) {
         const code = 'VALIDATION_ERROR';
         const msg = 'Please specify an email address.';
-        const results = [new APIResult(code, msg)];
             
-        res.status(422).send(formatApiResponse('ERROR', results));
+        res.status(422).send({
+            results: [{
+                    code,
+                    msg,
+                }]
+        });
         return;
     }
     
@@ -307,9 +357,13 @@ const resetPasswordLink = async (req, res, next) => {
                 if (difference < MIN_WAIT_TIME) {
                     const code = 'VALIDATION_ERROR';
                     const msg = 'Your reset link has already been sent. Please wait for your email to arrive.';
-                    const results = [new APIResult(code, msg)];
                         
-                    res.status(422).send(formatApiResponse('ERROR', results));
+                    res.status(422).send({
+                        results: [{
+                                code,
+                                msg,
+                            }]
+                    });
                     return;
                 }
     
@@ -326,16 +380,25 @@ const resetPasswordLink = async (req, res, next) => {
         //note that success message gets returned whether email was found or not, for security reasons.
         const code = 'ACTIVATION_SUCCESS';
         const msg = 'Activation link has been emailed to you.';
-        const results = [new APIResult(code, msg)];
             
-        return res.send(formatApiResponse('SUCCESS', results));
+        return res.send({
+            results: [{
+                    code,
+                    msg,
+                }]
+        });
 
         
     } catch(err) {
         const code = 'GLOBAL_ERROR';
-        const results = [new APIResult(code, err)];
+        const msg = 'Something went wrong.';
             
-        res.status(500).send(formatApiResponse('ERROR', results));
+        res.status(500).send({
+            results: [{
+                    code,
+                    msg,
+                }]
+        });
     }
     
 }
@@ -354,12 +417,14 @@ const resetPassword = async (req, res, next) => {
      if (!password || !resetPasswordToken) {
         const code = 'VALIDATION_ERROR';
         const msg = 'Your password could not be updated.';
-        validationErrors.push(new APIResult(code, msg));
+        validationErrors.push({code, msg});
     }
 
     //return errors to client if they exist
     if (validationErrors.length) {
-        return res.status(422).send(formatApiResponse('ERROR', validationErrors));
+        return res.status(422).send({
+            results: validationErrors
+        });
     }
 
     //otherwise, proceed
@@ -382,15 +447,23 @@ const resetPassword = async (req, res, next) => {
 
             const code = 'RESET_PASSWORD_SUCCESS';
             const msg = 'Your password has been updated.';
-            const results = [new APIResult(code, msg)];
                 
-            return res.send(formatApiResponse('SUCCESS', results));
+            return res.send({
+                results: [{
+                        code,
+                        msg,
+                    }]
+            });
         }
     } catch (err) {
         const code = 'GLOBAL_ERROR';
-        const results = [new APIResult(code, err)];
             
-        res.status(500).send(formatApiResponse('ERROR', results));
+        res.status(500).send({
+            results: [{
+                    code,
+                    err,
+                }]
+        });
     }
 
 }
@@ -404,31 +477,39 @@ const validateFields = (fields = {}) => {
     if (!email) {
         const code = 'VALIDATION_ERROR';
         const msg = 'You must provide an email address';
-        const Result = new APIResult(code, msg);
-        errors.push(Result);
+        errors.push({
+            code,
+            msg
+        });
     }
 
     //if email exists on the req body, check if it's valid
     if (email && !validateEmail(email)) {
         const code = 'VALIDATION_ERROR';
         const msg = 'The email address you have provided is invalid.';
-        const Result = new APIResult(code, msg);
-        errors.push(Result);
+        errors.push({
+            code,
+            msg
+        });
     }
 
     if (!password) {
         const code = 'VALIDATION_ERROR';
         const msg = 'You must provide a password';
-        const Result = new APIResult(code, msg);
-        errors.push(Result);
+        errors.push({
+            code,
+            msg
+        });
     }
 
     //validate password
     if (password && !validatePassword(password)) {
         const code = 'VALIDATION_ERROR';
         const msg = 'The password you have provided is invalid. Please make sure your password follows the password rules.';
-        const Result = new APIResult(code, msg);
-        errors.push(Result);
+        errors.push({
+            code,
+            msg
+        });
   }
 
   return errors;
