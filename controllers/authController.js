@@ -9,26 +9,25 @@ const passport = require('passport');
 const moment = require('moment');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const { sendAccountActivationEmail, sendPasswordResetEmail } = require('../lib/EmailManager');
 
-
-/* ========== REGISTER CONTROLLER */
+/* ========== REGISTER CONTROLLER ========== */
 const register = async (req, res, next) => {
     const {email, password } = req.body;
 
     /* Validate fields */
-    const validationErrors = validateFields({
+     const validationErrors = validateFields({
         email, 
         password
     });
-
+ 
 
      /* Send any validation errors back to client */ 
-    if (validationErrors.length) {         
-        res.status(422).send({
+     if (validationErrors.length > 0) {      
+        return res.status(422).send({
             errors: validationErrors
         });
-        return; //<-- this has to be here so we exit the register function before running the monngo middleware below
-    }
+    } 
 
 
     /* Save user info to database */
@@ -36,9 +35,12 @@ const register = async (req, res, next) => {
     try {
         const existingUser = await User.findOne({
             email //<-- shortening of email: email
-        })
+        });
+        const activationToken = uuidv4();
+
         //if a user is found with the email addresss -- aka a user is registered with that email address already --, do not proceed with saving user to db
         if (existingUser) {
+            console.log('existing user');
             const code = 'VALIDATION_ERROR';
             const msg = 'This email address already exists. Please use another email address.';
                 
@@ -49,7 +51,6 @@ const register = async (req, res, next) => {
                     }]
             });
         }
-
         //if user is NOT found, create new User object
         //remember that these fields have to match the model object (aka the User Schema)
         let user = new User({
@@ -57,34 +58,34 @@ const register = async (req, res, next) => {
             password, //<-- shorthand for password: password (from the request npdy)
             activated: false,
             activatedAt: Date.now(),
-            activationToken: uuidv4(),
-           // activationTokenSentAt: Date.Now(),
+            activationToken: activationToken,
+            activationTokenSentAt: Date.now(),
         });
 
         //save to db
         const savedUser = await user.save();
 
+        //Email activation token
+        sendAccountActivationEmail(savedUser);
+
         //send response to client 
         const code = 'REGISTRATION_SUCCESS';
-        const msg = 'You have successfully registered an accout.';
+        const msg = 'Your account has been created! Please check your email to activate your account.';
             
-        res.send({
-            results: [{
+        return res.send({
                 code,
                 msg,
                 ...User.toClientObject(savedUser)
-            }]
-        });
-
-
+            });
         
     } catch(err) {
-        const code = 'VALIDATION_ERROR';  
+        console.log('try catch error');
+        const code = 'GLOBAL_ERROR';  
 
         res.status(422).send({
             errors: [{
                     code,
-                    err
+                    msg: err
                 }]
         });
     }
@@ -201,15 +202,14 @@ const accountActivate = async (req, res, next) => {
         //if no user is returned, it means the client sent an invalid activation token
         if (!user) {
             const code = 'VALIDATION_ERROR';
-            const msg = 'There was a problem activating your account.';
+            const msg = 'This activation link is invalid.';
                 
-            res.status(422).send({
+            return res.status(422).send({
                 errors: [{
                         code,
                         msg
                     }]
             });
-            return;
         }
 
         //user IS returned! so now update data.
@@ -236,7 +236,7 @@ const accountActivate = async (req, res, next) => {
         res.status(500).send({
             results: [{
                     code,
-                    err,
+                    msg: err,
                 }]
         });
     }
@@ -285,29 +285,31 @@ const resendActivationLink = async (req, res, next) => {
             user.activationTokenSentAt = Date.now();
             user.activationToken = uuidv4();
 
-            await user.save();
+            const saveduser = await user.save();
 
-            //Send activation email here
+            //email activation link
+            await sendAccountActivationEmail(saveduser);
+
         }
-
+        
         //note that success message gets returned whether email was found or not, for security reasons.
         const code = 'ACTIVATION_SUCCESS';
         const msg = 'Activation link has been emailed to you.';
-            
+
         return res.send({
             results: [{
-                    code,
-                    msg,
-                }]
+                code,
+                msg,
+            }]
         });
-        
+
     } catch(err) {
         const code = 'GLOBAL_ERROR';
             
         res.status(500).send({
             results: [{
                     code,
-                    err,
+                    msg: err,
                 }]
         });
     }
@@ -358,45 +360,43 @@ const resetPasswordLink = async (req, res, next) => {
                     const code = 'VALIDATION_ERROR';
                     const msg = 'Your reset link has already been sent. Please wait for your email to arrive.';
                         
-                    res.status(422).send({
+                    return res.status(422).send({
                         results: [{
                                 code,
                                 msg,
                             }]
                     });
-                    return;
                 }
-    
             }
             
             user.resetPasswordToken = uuidv4();
             user.resetPasswordTokenSentAt = Date.now();
 
-            await user.save();
+            const savedUser = await user.save();
 
             //Send reset password email here
+            sendPasswordResetEmail(savedUser);
         }
 
         //note that success message gets returned whether email was found or not, for security reasons.
         const code = 'ACTIVATION_SUCCESS';
-        const msg = 'Activation link has been emailed to you.';
+        const msg = 'Your password-reset link has been emailed to you.';
             
         return res.send({
             results: [{
-                    code,
-                    msg,
-                }]
+                code,
+                msg,
+            }]
         });
 
         
     } catch(err) {
         const code = 'GLOBAL_ERROR';
-        const msg = 'Something went wrong.';
             
         res.status(500).send({
             results: [{
                     code,
-                    msg,
+                    msg: err,
                 }]
         });
     }
@@ -434,8 +434,15 @@ const resetPassword = async (req, res, next) => {
         });
         
         if (!user) {
-            //TODO: possibly send an error back to client
-            throw 'Error updating password.';
+            const code = 'VALIDATION_ERROR';
+            const msg = 'This password reset link has expired.';
+                
+            return res.status(422).send({
+                errors: [{
+                    code,
+                    msg
+                }]
+            });
         }
 
         //if user is found, update password
@@ -459,9 +466,9 @@ const resetPassword = async (req, res, next) => {
         const code = 'GLOBAL_ERROR';
             
         res.status(500).send({
-            results: [{
+            errors: [{
                     code,
-                    err,
+                    msg: err,
                 }]
         });
     }
@@ -472,44 +479,42 @@ const resetPassword = async (req, res, next) => {
 const validateFields = (fields = {}) => {
     
     const {email, password } = fields;
-    const errors = [];
+    let errors = [];
 
     if (!email) {
-        const code = 'VALIDATION_ERROR';
-        const msg = 'You must provide an email address';
-        errors.push({
-            code,
-            msg
-        });
+        const error = {
+            code: 'VALIDATION_ERROR',
+            msg: 'You must provide an email address',
+        }
+        errors.push(error);
     }
 
     //if email exists on the req body, check if it's valid
     if (email && !validateEmail(email)) {
-        const code = 'VALIDATION_ERROR';
-        const msg = 'The email address you have provided is invalid.';
-        errors.push({
-            code,
-            msg
-        });
+        const error = {
+            code: 'VALIDATION_ERROR',
+            msg: 'The email address you have provided is invalid.'
+        };
+        errors.push(error);
     }
 
     if (!password) {
-        const code = 'VALIDATION_ERROR';
-        const msg = 'You must provide a password';
-        errors.push({
-            code,
-            msg
-        });
+        const error = {
+            code: 'VALIDATION_ERROR',
+            msg: 'You must provide a password.'
+        };
+ 
+        errors.push(error);
     }
 
     //validate password
     if (password && !validatePassword(password)) {
-        const code = 'VALIDATION_ERROR';
-        const msg = 'The password you have provided is invalid. Please make sure your password follows the password rules.';
-        errors.push({
-            code,
-            msg
-        });
+        const error = {
+            code: 'VALIDATION_ERROR',
+            msg: 'The password you have provided is invalid. Please make sure your password follows the password rules.'
+        };
+
+        errors.push(error);
   }
 
   return errors;
